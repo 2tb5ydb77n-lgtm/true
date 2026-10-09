@@ -1,0 +1,1361 @@
+-- ================================================================================
+-- [ poophub Framework v6.0.0 ]
+-- Standard Execution Runtime & Modular Architecture Core
+-- ================================================================================
+
+local poophub = {
+    _VERSION = "6.0.0-Enterprise",
+    _BUILD = "001",
+    _AUTHOR = "poophub Development Team",
+    _ENV = "Production",
+    _LICENSE = "Internal Use Only",
+    _DESCRIPTION = "Modular runtime framework with remote config integration"
+}
+
+-- ================================================================================
+-- [ 0. Remote Configuration & External Link Integration ]
+-- ================================================================================
+poophub.RemoteConfig = {
+    Endpoint = "https://raw.githubusercontent.com/2tb5ydb77n-lgtm/MAX/refs/heads/main/POOPHUB",
+    Loaded = false,
+    Payload = nil,
+    ASCII_ART = [[
+╭──╮ ╭──╮
+│  │ │  │
+├──╯ ╭──╮ ╭──╮
+├──╯ │  │ │  │
+│    │  │ │  │
+╰──╯ ╰──╯ ╰──╯
+    ]],
+    Note = "ロガーじゃないです。"
+}
+
+function poophub.RemoteConfig:GetEndpoint()
+    return self.Endpoint
+end
+
+function poophub.RemoteConfig:GetPayload()
+    return {
+        Source = self.Endpoint,
+        AsciiArt = self.ASCII_ART,
+        Note = self.Note,
+        RetrievedAt = os.clock()
+    }
+end
+
+function poophub.RemoteConfig:PrintBanner()
+    print("==================================================")
+    print("Remote Config Endpoint:")
+    print("  " .. self.Endpoint)
+    print("--------------------------------------------------")
+    print(self.ASCII_ART)
+    print("Note: " .. self.Note)
+    print("==================================================")
+end
+
+function poophub.RemoteConfig:Load()
+    -- 外部リンクからの読み込みシミュレーション（実環境ではHttpService等で取得）
+    self.Payload = self:GetPayload()
+    self.Loaded = true
+    poophub.Logger:Info(string.format("[RemoteConfig] Loaded from %s", self.Endpoint))
+    poophub.Events.Dispatch("RemoteConfig_Loaded", self.Payload)
+end
+
+-- ================================================================================
+-- [ 1. Configuration & Constants Matrix ]
+-- ================================================================================
+poophub.Config = {
+    Core = {
+        DebugMode = false,
+        VerboseLogging = true,
+        MaxBufferCapacity = 4096,
+        TickRate = 60,
+        SafeExecution = true,
+        WatchdogEnabled = true,
+        WatchdogTimeout = 5.0,
+        AutoRecovery = true,
+        MaxRecoveryAttempts = 3,
+        LogLevel = "INFO",
+        LogToFile = false,
+        RemoteConfigEnabled = true,
+        RemoteConfigEndpoint = poophub.RemoteConfig.Endpoint
+    },
+    Themes = {
+        PrimaryColor = {R = 0.15, G = 0.15, B = 0.18},
+        AccentColor = {R = 0.85, G = 0.35, B = 0.20},
+        TextColor = {R = 0.95, G = 0.95, B = 0.95},
+        SurfaceColor = {R = 0.10, G = 0.10, B = 0.12},
+        BorderColor = {R = 0.30, G = 0.30, B = 0.35},
+        WarningColor = {R = 0.95, G = 0.75, B = 0.20},
+        ErrorColor = {R = 0.90, G = 0.25, B = 0.25},
+        SuccessColor = {R = 0.30, G = 0.85, B = 0.40},
+        CornerRadius = 8,
+        FontFamily = "Default",
+        FontSize = 14,
+        RemoteBannerColor = {R = 0.80, G = 0.60, B = 0.90}
+    },
+    AnitGrabModule = {
+        Enabled = true,
+        PowerThreshold = 10000,
+        DetectionRadius = 300,
+        FilteringMode = "Adaptive",
+        SafetyCheckInterval = 0.05,
+        MaxTargetsPerScan = 64,
+        EnableRaycast = true,
+        RaycastPrecision = 0.1,
+        PriorityMode = "Distance",
+        IncludeRemoteTargets = false
+    },
+    GroundHakaiModule = {
+        PowerScale = 99999,
+        VisualParticles = true,
+        ImpactRadius = 150,
+        DebrisLifeTime = 5.0,
+        ShakeIntensity = 0.8,
+        ShockwaveCount = 3,
+        SecondaryExplosions = true,
+        TerrainDeformation = true,
+        DeformationDepth = 2.5,
+        RemoteSourceEnabled = true
+    },
+    DCUS = {
+        ProtocolVersion = "DCUS-v2.4",
+        SyncRate = 120,
+        EncryptionKeyLength = 256,
+        BufferFlushInterval = 0.016,
+        PacketValidation = true,
+        MaxRetries = 5,
+        RetryBackoff = 0.25,
+        CompressionEnabled = true,
+        RemoteEndpoint = poophub.RemoteConfig.Endpoint
+    },
+    Telemetry = {
+        Enabled = true,
+        SamplingInterval = 1.0,
+        MaxSamples = 300,
+        EnableCharts = true,
+        ExportFormat = "JSON",
+        IncludeRemoteMetrics = true
+    },
+    Profiler = {
+        Enabled = true,
+        TrackMemory = true,
+        TrackCPU = true,
+        TrackNetwork = true,
+        TrackRemote = true,
+        ReportInterval = 10.0
+    }
+}
+
+-- ================================================================================
+-- [ 2. Utility & Math Toolkit ]
+-- ================================================================================
+poophub.Utils = {}
+
+function poophub.Utils.Clamp(val, min, max)
+    if val < min then return min end
+    if val > max then return max end
+    return val
+end
+
+function poophub.Utils.Lerp(a, b, t)
+    return a + (b - a) * poophub.Utils.Clamp(t, 0, 1)
+end
+
+function poophub.Utils.SmoothStep(t)
+    t = poophub.Utils.Clamp(t, 0, 1)
+    return t * t * (3 - 2 * t)
+end
+
+function poophub.Utils.EaseInOut(t)
+    t = poophub.Utils.Clamp(t, 0, 1)
+    return t < 0.5 and 2 * t * t or -1 + (4 - 2 * t) * t
+end
+
+function poophub.Utils.GenerateUUID()
+    local template ='xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
+    return string.gsub(template, '[xy]', function (c)
+        local v = (c == 'x') and math.random(0, 0xf) or math.random(8, 0xb)
+        return string.format('%x', v)
+    end)
+end
+
+function poophub.Utils.GenerateShortID(length)
+    length = length or 8
+    local charset = "abcdefghijklmnopqrstuvwxyz0123456789"
+    local result = {}
+    for i = 1, length do
+        local idx = math.random(1, #charset)
+        table.insert(result, charset:sub(idx, idx))
+    end
+    return table.concat(result)
+end
+
+function poophub.Utils.ColorToHex(color)
+    local r = math.floor(color.R * 255)
+    local g = math.floor(color.G * 255)
+    local b = math.floor(color.B * 255)
+    return string.format("#%02X%02X%02X", r, g, b)
+end
+
+function poophub.Utils.HexToColor(hex)
+    hex = hex:gsub("#", "")
+    return {
+        R = tonumber(hex:sub(1,2), 16) / 255,
+        G = tonumber(hex:sub(3,4), 16) / 255,
+        B = tonumber(hex:sub(5,6), 16) / 255
+    }
+end
+
+function poophub.Utils.Round(num, decimals)
+    decimals = decimals or 0
+    local mult = 10 ^ decimals
+    return math.floor(num * mult + 0.5) / mult
+end
+
+function poophub.Utils.TableLength(tbl)
+    local count = 0
+    for _ in pairs(tbl) do count = count + 1 end
+    return count
+end
+
+function poophub.Utils.DeepCopy(orig)
+    local copy
+    if type(orig) == 'table' then
+        copy = {}
+        for k, v in next, orig, nil do
+            copy[poophub.Utils.DeepCopy(k)] = poophub.Utils.DeepCopy(v)
+        end
+        setmetatable(copy, poophub.Utils.DeepCopy(getmetatable(orig)))
+    else
+        copy = orig
+    end
+    return copy
+end
+
+function poophub.Utils.TableMerge(dest, src)
+    for k, v in pairs(src) do
+        if type(v) == "table" and type(dest[k]) == "table" then
+            poophub.Utils.TableMerge(dest[k], v)
+        else
+            dest[k] = v
+        end
+    end
+    return dest
+end
+
+function poophub.Utils.FormatBytes(bytes)
+    local units = {"B", "KB", "MB", "GB", "TB"}
+    local i = 1
+    while bytes >= 1024 and i < #units do
+        bytes = bytes / 1024
+        i = i + 1
+    end
+    return string.format("%.2f %s", bytes, units[i])
+end
+
+function poophub.Utils.FormatTime(seconds)
+    local h = math.floor(seconds / 3600)
+    local m = math.floor((seconds % 3600) / 60)
+    local s = math.floor(seconds % 60)
+    return string.format("%02d:%02d:%02d", h, m, s)
+end
+
+function poophub.Utils.VectorMagnitude(vec)
+    return math.sqrt(vec.X^2 + vec.Y^2 + vec.Z^2)
+end
+
+function poophub.Utils.VectorNormalize(vec)
+    local mag = poophub.Utils.VectorMagnitude(vec)
+    if mag == 0 then return {X = 0, Y = 0, Z = 0} end
+    return {X = vec.X / mag, Y = vec.Y / mag, Z = vec.Z / mag}
+end
+
+function poophub.Utils.VectorAdd(a, b)
+    return {X = a.X + b.X, Y = a.Y + b.Y, Z = a.Z + b.Z}
+end
+
+function poophub.Utils.VectorSubtract(a, b)
+    return {X = a.X - b.X, Y = a.Y - b.Y, Z = a.Z - b.Z}
+end
+
+function poophub.Utils.VectorDot(a, b)
+    return a.X * b.X + a.Y * b.Y + a.Z * b.Z
+end
+
+function poophub.Utils.VectorCross(a, b)
+    return {
+        X = a.Y * b.Z - a.Z * b.Y,
+        Y = a.Z * b.X - a.X * b.Z,
+        Z = a.X * b.Y - a.Y * b.X
+    }
+end
+
+function poophub.Utils.VectorScale(v, scalar)
+    return {X = v.X * scalar, Y = v.Y * scalar, Z = v.Z * scalar}
+end
+
+function poophub.Utils.RandomRange(min, max)
+    return min + math.random() * (max - min)
+end
+
+function poophub.Utils.RandomInt(min, max)
+    return math.random(min, max)
+end
+
+function poophub.Utils.RandomChoice(tbl)
+    return tbl[math.random(1, #tbl)]
+end
+
+function poophub.Utils.Shuffle(tbl)
+    for i = #tbl, 2, -1 do
+        local j = math.random(i)
+        tbl[i], tbl[j] = tbl[j], tbl[i]
+    end
+    return tbl
+end
+
+function poophub.Utils.Trim(str)
+    return (str:gsub("^%s*(.-)%s*$", "%1"))
+end
+
+function poophub.Utils.Split(str, delimiter)
+    local result = {}
+    for token in string.gmatch(str, "([^" .. delimiter .. "]+)") do
+        table.insert(result, token)
+    end
+    return result
+end
+
+-- ================================================================================
+-- [ 3. Event Dispatcher & State Management ]
+-- ================================================================================
+poophub.Events = {}
+poophub.Events._listeners = {}
+poophub.Events._history = {}
+poophub.Events._historyLimit = 200
+
+function poophub.Events.Subscribe(eventName, callback)
+    if not poophub.Events._listeners[eventName] then
+        poophub.Events._listeners[eventName] = {}
+    end
+    table.insert(poophub.Events._listeners[eventName], callback)
+    return function()
+        for i, cb in ipairs(poophub.Events._listeners[eventName]) do
+            if cb == callback then
+                table.remove(poophub.Events._listeners[eventName], i)
+                break
+            end
+        end
+    end
+end
+
+function poophub.Events.UnsubscribeAll(eventName)
+    poophub.Events._listeners[eventName] = nil
+end
+
+function poophub.Events.Dispatch(eventName, ...)
+    local listeners = poophub.Events._listeners[eventName]
+    local args = {...}
+    
+    table.insert(poophub.Events._history, {
+        Name = eventName,
+        Args = args,
+        Time = os.clock()
+    })
+    
+    if #poophub.Events._history > poophub.Events._historyLimit then
+        table.remove(poophub.Events._history, 1)
+    end
+    
+    if listeners then
+        for _, callback in ipairs(listeners) do
+            pcall(callback, ...)
+        end
+    end
+end
+
+function poophub.Events.GetHistory(eventName)
+    if not eventName then return poophub.Events._history end
+    local filtered = {}
+    for _, entry in ipairs(poophub.Events._history) do
+        if entry.Name == eventName then
+            table.insert(filtered, entry)
+        end
+    end
+    return filtered
+end
+
+-- ================================================================================
+-- [ 4. Logging Subsystem ]
+-- ================================================================================
+poophub.Logger = {
+    _levels = {DEBUG = 1, INFO = 2, WARN = 3, ERROR = 4},
+    _buffer = {},
+    _maxBuffer = 500
+}
+
+function poophub.Logger:Log(level, message, context)
+    local cfg = poophub.Config.Core
+    local levelValue = self._levels[level] or 2
+    local configLevel = self._levels[cfg.LogLevel] or 2
+    
+    if levelValue < configLevel then return end
+    
+    local entry = {
+        Level = level,
+        Message = message,
+        Context = context,
+        Timestamp = os.clock(),
+        Thread = "main"
+    }
+    
+    table.insert(self._buffer, entry)
+    if #self._buffer > self._maxBuffer then
+        table.remove(self._buffer, 1)
+    end
+    
+    if cfg.VerboseLogging then
+        print(string.format("[%s] %s", level, message))
+    end
+    
+    poophub.Events.Dispatch("Log_Entry", entry)
+end
+
+function poophub.Logger:Debug(msg, ctx) self:Log("DEBUG", msg, ctx) end
+function poophub.Logger:Info(msg, ctx) self:Log("INFO", msg, ctx) end
+function poophub.Logger:Warn(msg, ctx) self:Log("WARN", msg, ctx) end
+function poophub.Logger:Error(msg, ctx) self:Log("ERROR", msg, ctx) end
+
+function poophub.Logger:GetBuffer()
+    return poophub.Utils.DeepCopy(self._buffer)
+end
+
+function poophub.Logger:Clear()
+    self._buffer = {}
+end
+
+-- ================================================================================
+-- [ 5. DCUS Network & Security Subsystem ]
+-- ================================================================================
+poophub.DCUS = {
+    SessionToken = nil,
+    IsConnected = false,
+    Queue = {},
+    Stats = {
+        PacketsSent = 0,
+        PacketsReceived = 0,
+        PacketsDropped = 0,
+        BytesTransferred = 0,
+        LastFlush = 0,
+        RemoteEndpoint = poophub.RemoteConfig.Endpoint
+    }
+}
+
+function poophub.DCUS:Initialize()
+    self.SessionToken = poophub.Utils.GenerateUUID()
+    self.IsConnected = true
+    self.Stats.PacketsSent = 0
+    self.Stats.PacketsReceived = 0
+    self.Stats.PacketsDropped = 0
+    self.Stats.BytesTransferred = 0
+    poophub.Events.Dispatch("DCUS_Init", self.SessionToken)
+    poophub.Logger:Info(string.format("[DCUS] Protocol initialized with Session ID: %s", self.SessionToken))
+end
+
+function poophub.DCUS:Disconnect()
+    if not self.IsConnected then return end
+    self:FlushBuffer()
+    self.IsConnected = false
+    poophub.Logger:Info("[DCUS] Session terminated")
+    poophub.Events.Dispatch("DCUS_Disconnected", self.SessionToken)
+end
+
+function poophub.DCUS:PushPacket(packetType, payload)
+    if not self.IsConnected then return false end
+    
+    local packet = {
+        Header = {
+            Type = packetType,
+            Timestamp = os.clock(),
+            Token = self.SessionToken,
+            Sequence = self.Stats.PacketsSent + 1,
+            Checksum = poophub.Utils.GenerateShortID(12),
+            RemoteSource = poophub.Config.Core.RemoteConfigEndpoint
+        },
+        Data = payload
+    }
+    
+    table.insert(self.Queue, packet)
+    if #self.Queue > poophub.Config.Core.MaxBufferCapacity then
+        table.remove(self.Queue, 1)
+        self.Stats.PacketsDropped = self.Stats.PacketsDropped + 1
+    end
+    
+    self.Stats.PacketsSent = self.Stats.PacketsSent + 1
+    poophub.Events.Dispatch("DCUS_PacketQueued", packet)
+    return true
+end
+
+function poophub.DCUS:FlushBuffer()
+    local processedCount = #self.Queue
+    for _, packet in ipairs(self.Queue) do
+        self.Stats.BytesTransferred = self.Stats.BytesTransferred + #tostring(packet.Data)
+    end
+    self.Queue = {}
+    self.Stats.LastFlush = os.clock()
+    return processedCount
+end
+
+function poophub.DCUS:GetStatistics()
+    return poophub.Utils.DeepCopy(self.Stats)
+end
+
+function poophub.DCUS:ValidatePacket(packet)
+    if not packet or not packet.Header then return false end
+    if not packet.Header.Token or packet.Header.Token ~= self.SessionToken then
+        return false
+    end
+    return true
+end
+
+-- ================================================================================
+-- [ 6. AnitGrab Engine Module ]
+-- ================================================================================
+poophub.AnitGrab = {
+    ActiveState = false,
+    TargetsProcessed = 0,
+    LastScanResults = {},
+    ScanHistory = {}
+}
+
+function poophub.AnitGrab:Toggle(state)
+    self.ActiveState = (state ~= nil) and state or not self.ActiveState
+    poophub.Events.Dispatch("AnitGrab_StateChanged", self.ActiveState)
+    poophub.Logger:Info(string.format("[AnitGrab] Status updated: %s", tostring(self.ActiveState)))
+end
+
+function poophub.AnitGrab:ScanArea(centerPosition, radius)
+    if not self.ActiveState then return {} end
+    
+    local cfg = poophub.Config.AnitGrabModule
+    local mockDetectedObjects = {}
+    local stepCount = math.min(8, cfg.MaxTargetsPerScan)
+    
+    for i = 1, stepCount do
+        local angle = (i / stepCount) * math.pi * 2
+        local offsetX = math.cos(angle) * radius
+        local offsetZ = math.sin(angle) * radius
+        
+        table.insert(mockDetectedObjects, {
+            ID = poophub.Utils.GenerateUUID(),
+            Offset = {X = offsetX, Y = 0, Z = offsetZ},
+            Distance = radius,
+            Priority = cfg.PriorityMode == "Distance" and radius or math.random(1, 100),
+            Source = "local"
+        })
+    end
+    
+    if cfg.IncludeRemoteTargets and poophub.RemoteConfig.Loaded then
+        table.insert(mockDetectedObjects, {
+            ID = "remote_" .. poophub.Utils.GenerateShortID(6),
+            Offset = {X = radius * 2, Y = 0, Z = 0},
+            Distance = radius * 2,
+            Priority = 1,
+            Source = "remote",
+            Endpoint = poophub.RemoteConfig.Endpoint
+        })
+    end
+    
+    table.sort(mockDetectedObjects, function(a, b)
+        return a.Priority < b.Priority
+    end)
+    
+    self.TargetsProcessed = self.TargetsProcessed + #mockDetectedObjects
+    self.LastScanResults = mockDetectedObjects
+    
+    table.insert(self.ScanHistory, {
+        Center = centerPosition,
+        Radius = radius,
+        Count = #mockDetectedObjects,
+        Time = os.clock()
+    })
+    
+    if #self.ScanHistory > 50 then
+        table.remove(self.ScanHistory, 1)
+    end
+    
+    return mockDetectedObjects
+end
+
+function poophub.AnitGrab:GetStatistics()
+    return {
+        Active = self.ActiveState,
+        TotalTargetsProcessed = self.TargetsProcessed,
+        LastScanCount = #self.LastScanResults,
+        ScansPerformed = #self.ScanHistory
+    }
+end
+
+-- ================================================================================
+-- [ 7. Ground Hakai (地面破壊) Physics Render Pipeline ]
+-- ================================================================================
+poophub.GroundHakai = {
+    IntensityLevel = 1.0,
+    TotalDestructions = 0,
+    DestructionLog = {}
+}
+
+function poophub.GroundHakai:SetIntensity(level)
+    self.IntensityLevel = poophub.Utils.Clamp(level, 0.1, 10.0)
+    poophub.Logger:Info(string.format("[GroundHakai] Intensity scaled to %.2f", self.IntensityLevel))
+    poophub.Events.Dispatch("GroundHakai_IntensityChanged", self.IntensityLevel)
+end
+
+function poophub.GroundHakai:ExecuteBreak(originVector)
+    local cfg = poophub.Config.GroundHakaiModule
+    local power = cfg.PowerScale * self.IntensityLevel
+    
+    poophub.Logger:Info(string.format(
+        "[GroundHakai] Executing destruction sequence at origin [%.1f, %.1f, %.1f] with power: %.0f", 
+        originVector.X, originVector.Y, originVector.Z, power))
+        
+    local detected = poophub.AnitGrab:ScanArea(originVector, cfg.ImpactRadius)
+    local affected = 0
+    
+    for idx, obj in ipairs(detected) do
+        local impulse = {
+            X = poophub.Utils.RandomRange(-50, 50) * self.IntensityLevel,
+            Y = -power,
+            Z = poophub.Utils.RandomRange(-50, 50) * self.IntensityLevel
+        }
+        
+        poophub.DCUS:PushPacket("GROUND_BREAK_PHYSICS", {
+            ObjectID = obj.ID,
+            CalculatedImpulse = impulse,
+            OriginVector = originVector,
+            SequenceIndex = idx,
+            RemoteConfigSource = obj.Source == "remote" and obj.Endpoint or nil
+        })
+        
+        affected = affected + 1
+    end
+    
+    self.TotalDestructions = self.TotalDestructions + 1
+    
+    table.insert(self.DestructionLog, {
+        Origin = originVector,
+        AffectedCount = affected,
+        Power = power,
+        Time = os.clock()
+    })
+    
+    if #self.DestructionLog > 100 then
+        table.remove(self.DestructionLog, 1)
+    end
+    
+    poophub.Events.Dispatch("GroundHakai_Executed", {
+        Origin = originVector,
+        AffectedCount = affected,
+        PowerApplied = power
+    })
+    
+    return affected
+end
+
+function poophub.GroundHakai:GetStatistics()
+    return {
+        Intensity = self.IntensityLevel,
+        TotalDestructions = self.TotalDestructions,
+        LogSize = #self.DestructionLog
+    }
+end
+
+-- ================================================================================
+-- [ 8. Mock User Interface Framework ]
+-- ================================================================================
+poophub.UI = {
+    Windows = {},
+    IsVisible = false,
+    EventQueue = {}
+}
+
+function poophub.UI:CreateWindow(title, width, height)
+    local winID = poophub.Utils.GenerateUUID()
+    local newWindow = {
+        ID = winID,
+        Title = title,
+        Size = {Width = width or 400, Height = height or 300},
+        Position = {X = 100, Y = 100},
+        Elements = {},
+        Visible = true,
+        ZIndex = 1,
+        Resizable = true,
+        Draggable = true
+    }
+    
+    function newWindow:AddButton(label, callback)
+        table.insert(self.Elements, {
+            Type = "Button",
+            Text = label,
+            OnClick = callback,
+            Enabled = true
+        })
+    end
+    
+    function newWindow:AddSlider(label, min, max, default, callback)
+        table.insert(self.Elements, {
+            Type = "Slider",
+            Text = label,
+            Min = min,
+            Max = max,
+            Value = default,
+            OnChanged = callback,
+            Enabled = true
+        })
+    end
+    
+    function newWindow:AddLabel(text)
+        table.insert(self.Elements, {
+            Type = "Label",
+            Text = text
+        })
+    end
+    
+    function newWindow:AddToggle(label, default, callback)
+        table.insert(self.Elements, {
+            Type = "Toggle",
+            Text = label,
+            Value = default or false,
+            OnChanged = callback
+        })
+    end
+    
+    function newWindow:AddInput(label, placeholder, callback)
+        table.insert(self.Elements, {
+            Type = "Input",
+            Text = label,
+            Placeholder = placeholder or "",
+            Value = "",
+            OnSubmit = callback
+        })
+    end
+    
+    function newWindow:AddRemoteBanner()
+        table.insert(self.Elements, {
+            Type = "RemoteBanner",
+            Text = poophub.RemoteConfig.Note,
+            AsciiArt = poophub.RemoteConfig.ASCII_ART,
+            Endpoint = poophub.RemoteConfig.Endpoint
+        })
+    end
+    
+    function newWindow:SetPosition(x, y)
+        self.Position.X = x
+        self.Position.Y = y
+    end
+    
+    function newWindow:Show()
+        self.Visible = true
+        poophub.Events.Dispatch("UI_WindowShown", self.ID)
+    end
+    
+    function newWindow:Hide()
+        self.Visible = false
+        poophub.Events.Dispatch("UI_WindowHidden", self.ID)
+    end
+    
+    function newWindow:Destroy()
+        poophub.UI.Windows[self.ID] = nil
+        poophub.Events.Dispatch("UI_WindowDestroyed", self.ID)
+    end
+    
+    self.Windows[winID] = newWindow
+    poophub.Logger:Info(string.format("[UI] Created window '%s' (ID: %s)", title, winID))
+    poophub.Events.Dispatch("UI_WindowCreated", newWindow)
+    return newWindow
+end
+
+function poophub.UI:GetWindowByID(winID)
+    return self.Windows[winID]
+end
+
+function poophub.UI:GetWindowCount()
+    return poophub.Utils.TableLength(self.Windows)
+end
+
+-- ================================================================================
+-- [ 9. Telemetry & Profiling Subsystem ]
+-- ================================================================================
+poophub.Telemetry = {
+    Samples = {},
+    StartTime = nil
+}
+
+function poophub.Telemetry:Start()
+    self.StartTime = os.clock()
+    self.Samples = {}
+    poophub.Logger:Info("[Telemetry] Subsystem started")
+end
+
+function poophub.Telemetry:Sample()
+    if not self.StartTime then return end
+    table.insert(self.Samples, {
+        Time = os.clock() - self.StartTime,
+        MemoryUsage = collectgarbage("count"),
+        TargetCount = poophub.AnitGrab.TargetsProcessed,
+        Destructions = poophub.GroundHakai.TotalDestructions,
+        PacketsInQueue = #poophub.DCUS.Queue,
+        RemoteConfigLoaded = poophub.RemoteConfig.Loaded and 1 or 0
+    })
+    if #self.Samples > poophub.Config.Telemetry.MaxSamples then
+        table.remove(self.Samples, 1)
+    end
+end
+
+function poophub.Telemetry:GetAverages()
+    if #self.Samples == 0 then return nil end
+    local sumMem, sumTargets, sumDest = 0, 0, 0
+    for _, s in ipairs(self.Samples) do
+        sumMem = sumMem + s.MemoryUsage
+        sumTargets = sumTargets + s.TargetCount
+        sumDest = sumDest + s.Destructions
+    end
+    local n = #self.Samples
+    return {
+        AvgMemory = sumMem / n,
+        AvgTargets = sumTargets / n,
+        AvgDestructions = sumDest / n
+    }
+end
+
+poophub.Profiler = {
+    Timers = {},
+    Counters = {}
+}
+
+function poophub.Profiler:StartTimer(name)
+    self.Timers[name] = self.Timers[name] or {Total = 0, Count = 0}
+    self.Timers[name].Start = os.clock()
+end
+
+function poophub.Profiler:StopTimer(name)
+    if not self.Timers[name] or not self.Timers[name].Start then return end
+    local elapsed = os.clock() - self.Timers[name].Start
+    self.Timers[name].Total = self.Timers[name].Total + elapsed
+    self.Timers[name].Count = self.Timers[name].Count + 1
+    self.Timers[name].Start = nil
+end
+
+function poophub.Profiler:IncrementCounter(name, amount)
+    amount = amount or 1
+    self.Counters[name] = (self.Counters[name] or 0) + amount
+end
+
+function poophub.Profiler:GetReport()
+    local report = {Timers = {}, Counters = poophub.Utils.DeepCopy(self.Counters)}
+    for name, data in pairs(self.Timers) do
+        report.Timers[name] = {
+            Total = data.Total,
+            Count = data.Count,
+            Average = data.Count > 0 and (data.Total / data.Count) or 0
+        }
+    end
+    return report
+end
+
+-- ================================================================================
+-- [ 10. Task Scheduler & Job Queue ]
+-- ================================================================================
+poophub.Scheduler = {
+    Tasks = {},
+    NextID = 1
+}
+
+function poophub.Scheduler:Schedule(interval, callback, options)
+    options = options or {}
+    local task = {
+        ID = self.NextID,
+        Interval = interval,
+        Callback = callback,
+        LastRun = 0,
+        Repeating = options.Repeating ~= false,
+        MaxRuns = options.MaxRuns or math.huge,
+        RunCount = 0,
+        Enabled = true,
+        Name = options.Name or ("Task_" .. self.NextID)
+    }
+    self.NextID = self.NextID + 1
+    table.insert(self.Tasks, task)
+    poophub.Logger:Debug(string.format("[Scheduler] Scheduled task %s (%.2fs interval)", task.Name, interval))
+    return task.ID
+end
+
+function poophub.Scheduler:Cancel(taskID)
+    for i, task in ipairs(self.Tasks) do
+        if task.ID == taskID then
+            table.remove(self.Tasks, i)
+            return true
+        end
+    end
+    return false
+end
+
+function poophub.Scheduler:Update(currentTime)
+    for i = #self.Tasks, 1, -1 do
+        local task = self.Tasks[i]
+        if task.Enabled and (currentTime - task.LastRun) >= task.Interval then
+            task.LastRun = currentTime
+            task.RunCount = task.RunCount + 1
+            local ok, err = pcall(task.Callback, task)
+            if not ok then
+                poophub.Logger:Error(string.format("[Scheduler] Task %s failed: %s", task.Name, tostring(err)))
+            end
+            if not task.Repeating or task.RunCount >= task.MaxRuns then
+                table.remove(self.Tasks, i)
+            end
+        end
+    end
+end
+
+-- ================================================================================
+-- [ 11. Memory Pool & Cache Manager ]
+-- ================================================================================
+poophub.Cache = {
+    Store = {},
+    Metadata = {},
+    MaxEntries = 1000
+}
+
+function poophub.Cache:Set(key, value, ttl)
+    self.Store[key] = value
+    self.Metadata[key] = {
+        Created = os.clock(),
+        TTL = ttl or math.huge,
+        AccessCount = 0
+    }
+    
+    if poophub.Utils.TableLength(self.Store) > self.MaxEntries then
+        self:EvictOldest()
+    end
+end
+
+function poophub.Cache:Get(key)
+    if not self.Store[key] then return nil end
+    local meta = self.Metadata[key]
+    if os.clock() - meta.Created > meta.TTL then
+        self:Invalidate(key)
+        return nil
+    end
+    meta.AccessCount = meta.AccessCount + 1
+    return self.Store[key]
+end
+
+function poophub.Cache:Invalidate(key)
+    self.Store[key] = nil
+    self.Metadata[key] = nil
+end
+
+function poophub.Cache:EvictOldest()
+    local oldestKey, oldestTime = nil, math.huge
+    for key, meta in pairs(self.Metadata) do
+        if meta.Created < oldestTime then
+            oldestTime = meta.Created
+            oldestKey = key
+        end
+    end
+    if oldestKey then self:Invalidate(oldestKey) end
+end
+
+function poophub.Cache:Clear()
+    self.Store = {}
+    self.Metadata = {}
+end
+
+-- ================================================================================
+-- [ 12. State Machine ]
+-- ================================================================================
+poophub.StateMachine = {}
+poophub.StateMachine.__index = poophub.StateMachine
+
+function poophub.StateMachine.new(initialState)
+    local sm = setmetatable({}, poophub.StateMachine)
+    sm.Current = initialState
+    sm.States = {}
+    sm.Transitions = {}
+    sm.History = {}
+    return sm
+end
+
+function poophub.StateMachine:AddState(name, onEnter, onExit)
+    self.States[name] = {
+        OnEnter = onEnter,
+        OnExit = onExit
+    }
+end
+
+function poophub.StateMachine:AddTransition(from, to, condition)
+    self.Transitions[from] = self.Transitions[from] or {}
+    table.insert(self.Transitions[from], {To = to, Condition = condition})
+end
+
+function poophub.StateMachine:TransitionTo(newState, ...)
+    if not self.States[newState] then return false end
+    local oldState = self.Current
+    if self.States[oldState] and self.States[oldState].OnExit then
+        self.States[oldState].OnExit(...)
+    end
+    table.insert(self.History, {From = oldState, To = newState, Time = os.clock()})
+    self.Current = newState
+    if self.States[newState].OnEnter then
+        self.States[newState].OnEnter(...)
+    end
+    poophub.Events.Dispatch("StateMachine_Transitioned", oldState, newState)
+    return true
+end
+
+-- ================================================================================
+-- [ 13. Signal Bus (Pub/Sub with Filters) ]
+-- ================================================================================
+poophub.SignalBus = {
+    Channels = {}
+}
+
+function poophub.SignalBus:CreateChannel(name)
+    if not self.Channels[name] then
+        self.Channels[name] = {Subscribers = {}, Filter = nil}
+    end
+    return name
+end
+
+function poophub.SignalBus:Subscribe(channelName, callback, filter)
+    self:CreateChannel(channelName)
+    table.insert(self.Channels[channelName].Subscribers, {
+        Callback = callback,
+        Filter = filter
+    })
+end
+
+function poophub.SignalBus:Send(channelName, payload)
+    local ch = self.Channels[channelName]
+    if not ch then return end
+    for _, sub in ipairs(ch.Subscribers) do
+        if not sub.Filter or sub.Filter(payload) then
+            pcall(sub.Callback, payload)
+        end
+    end
+end
+
+-- ================================================================================
+-- [ 14. Command Registry ]
+-- ================================================================================
+poophub.Commands = {
+    Registry = {}
+}
+
+function poophub.Commands:Register(name, handler, description)
+    self.Registry[name] = {
+        Handler = handler,
+        Description = description or "",
+        CallCount = 0
+    }
+end
+
+function poophub.Commands:Execute(name, ...)
+    local cmd = self.Registry[name]
+    if not cmd then
+        poophub.Logger:Warn(string.format("[Commands] Unknown command: %s", name))
+        return false
+    end
+    cmd.CallCount = cmd.CallCount + 1
+    local ok, err = pcall(cmd.Handler, ...)
+    if not ok then
+        poophub.Logger:Error(string.format("[Commands] Command '%s' failed: %s", name, tostring(err)))
+    end
+    return ok
+end
+
+function poophub.Commands:List()
+    local list = {}
+    for name, cmd in pairs(self.Registry) do
+        table.insert(list, {Name = name, Description = cmd.Description, Calls = cmd.CallCount})
+    end
+    table.sort(list, function(a, b) return a.Name < b.Name end)
+    return list
+end
+
+-- ================================================================================
+-- [ 15. Data Serialization Helpers ]
+-- ================================================================================
+poophub.Serializer = {}
+
+function poophub.Serializer.EncodeTable(tbl, indent)
+    indent = indent or 0
+    local spaces = string.rep("  ", indent)
+    local result = "{\n"
+    for k, v in pairs(tbl) do
+        local key
+        if type(k) == "string" then
+            key = string.format('["%s"]', k)
+        else
+            key = "[" .. tostring(k) .. "]"
+        end
+        local value
+        if type(v) == "table" then
+            value = poophub.Serializer.EncodeTable(v, indent + 1)
+        elseif type(v) == "string" then
+            value = string.format('"%s"', v)
+        else
+            value = tostring(v)
+        end
+        result = result .. spaces .. "  " .. key .. " = " .. value .. ",\n"
+    end
+    return result .. spaces .. "}"
+end
+
+function poophub.Serializer.DecodeSimple(str)
+    local env = {}
+    local fn = loadstring or load
+    local chunk = fn("return " .. str)
+    if chunk then
+        setfenv = setfenv or function(f, e) end
+        setfenv(chunk, env)
+        local ok, result = pcall(chunk)
+        if ok then return result end
+    end
+    return nil
+end
+
+-- ================================================================================
+-- [ 16. Watchdog & Health Monitor ]
+-- ================================================================================
+poophub.Watchdog = {
+    LastHeartbeat = 0,
+    Healthy = true,
+    FailureCount = 0
+}
+
+function poophub.Watchdog:Heartbeat()
+    self.LastHeartbeat = os.clock()
+end
+
+function poophub.Watchdog:Check()
+    local elapsed = os.clock() - self.LastHeartbeat
+    if elapsed > poophub.Config.Core.WatchdogTimeout then
+        self.Healthy = false
+        self.FailureCount = self.FailureCount + 1
+        poophub.Logger:Warn(string.format("[Watchdog] Timeout detected (%.2fs since last heartbeat)", elapsed))
+        poophub.Events.Dispatch("Watchdog_Timeout", elapsed)
+    else
+        self.Healthy = true
+    end
+    return self.Healthy
+end
+
+-- ================================================================================
+-- [ 17. Remote Config Manager (リンク統合モジュール) ]
+-- ================================================================================
+poophub.RemoteManager = {
+    LastSync = 0,
+    SyncInterval = 30.0,
+    SyncCount = 0,
+    Errors = 0
+}
+
+function poophub.RemoteManager:Sync()
+    local ok, err = pcall(function()
+        poophub.RemoteConfig:Load()
+    end)
+    
+    if ok then
+        self.LastSync = os.clock()
+        self.SyncCount = self.SyncCount + 1
+        poophub.Logger:Info(string.format("[RemoteManager] Sync #%d complete", self.SyncCount))
+        poophub.Events.Dispatch("RemoteManager_SyncComplete", self.SyncCount)
+    else
+        self.Errors = self.Errors + 1
+        poophub.Logger:Error(string.format("[RemoteManager] Sync failed: %s", tostring(err)))
+        poophub.Events.Dispatch("RemoteManager_SyncError", err)
+    end
+end
+
+function poophub.RemoteManager:GetStatus()
+    return {
+        Endpoint = poophub.RemoteConfig.Endpoint,
+        Loaded = poophub.RemoteConfig.Loaded,
+        LastSync = self.LastSync,
+        SyncCount = self.SyncCount,
+        Errors = self.Errors
+    }
+end
+
+function poophub.RemoteManager:PrintStatus()
+    local st = self:GetStatus()
+    print("==================================================")
+    print("Remote Config Status:")
+    print("  Endpoint:", st.Endpoint)
+    print("  Loaded:", tostring(st.Loaded))
+    print("  Sync Count:", st.SyncCount)
+    print("  Errors:", st.Errors)
+    print("==================================================")
+end
+
+-- ================================================================================
+-- [ 18. Core Initialization & Main Loop Lifecycle ]
+-- ================================================================================
+function poophub:Init()
+    print("--------------------------------------------------")
+    print(string.format("Booting %s Framework", self._VERSION))
+    print(string.format("Build: %s | Environment: %s", self._BUILD, self._ENV))
+    print("--------------------------------------------------")
+    
+    -- Remote Config Banner
+    if self.Config.Core.RemoteConfigEnabled then
+        self.RemoteConfig:PrintBanner()
+        self.RemoteConfig:Load()
+    end
+    
+    -- Subsystem Startup
+    poophub.Logger:Info("[Core] Starting subsystem initialization sequence...")
+    poophub.DCUS:Initialize()
+    poophub.AnitGrab:Toggle(poophub.Config.AnitGrabModule.Enabled)
+    poophub.Telemetry:Start()
+    poophub.Watchdog:Heartbeat()
+    poophub.RemoteManager:Sync()
+    
+    -- Register default commands
+    poophub.Commands:Register("status", function()
+        print("Framework Status:")
+        print("  DCUS Connected:", poophub.DCUS.IsConnected)
+        print("  AnitGrab Active:", poophub.AnitGrab.ActiveState)
+        print("  UI Windows:", poophub.UI:GetWindowCount())
+        print("  Scheduler Tasks:", #poophub.Scheduler.Tasks)
+        print("  Remote Loaded:", poophub.RemoteConfig.Loaded)
+        print("  Remote Endpoint:", poophub.RemoteConfig.Endpoint)
+    end, "Displays current framework status")
+    
+    poophub.Commands:Register("flush", function()
+        local count = poophub.DCUS:FlushBuffer()
+        print(string.format("Flushed %d packets", count))
+    end, "Flushes the DCUS buffer")
+    
+    poophub.Commands:Register("profile", function()
+        local report = poophub.Profiler:GetReport()
+        print("Profiler Report:")
+        for name, data in pairs(report.Timers) do
+            print(string.format("  %s: avg %.4fms over %d calls", name, data.Average * 1000, data.Count))
+        end
+    end, "Prints profiler report")
+    
+    poophub.Commands:Register("remote", function()
+        poophub.RemoteManager:PrintStatus()
+    end, "Shows remote config status")
+    
+    poophub.Commands:Register("banner", function()
+        poophub.RemoteConfig:PrintBanner()
+    end, "Prints the remote ASCII banner")
+    
+    -- Event Bindings
+    poophub.Events.Subscribe("GroundHakai_Executed", function(data)
+        print(string.format("[Event Log] 地面破壊完了: 影響オブジェクト数 %d 個", data.AffectedCount))
+    end)
+    
+    poophub.Events.Subscribe("AnitGrab_StateChanged", function(state)
+        poophub.Logger:Debug(string.format("[Event Log] AnitGrab state -> %s", tostring(state)))
+    end)
+    
+    poophub.Events.Subscribe("RemoteConfig_Loaded", function(payload)
+        poophub.Logger:Info(string.format("[Event Log] Remote config loaded from %s", payload.Source))
+    end)
+    
+    -- Schedule periodic tasks
+    poophub.Scheduler:Schedule(1.0, function()
+        poophub.Telemetry:Sample()
+        poophub.Watchdog:Heartbeat()
+    end, {Name = "TelemetrySampler"})
+    
+    poophub.Scheduler:Schedule(30.0, function()
+        poophub.RemoteManager:Sync()
+    end, {Name = "RemoteSync"})
+    
+    -- Construct Interface Layout
+    local MainWindow = poophub.UI:CreateWindow("poophub Control Panel", 480, 420)
+    
+    MainWindow:AddLabel("=== poophub Control Center ===")
+    MainWindow:AddRemoteBanner()
+    
+    MainWindow:AddButton("AnitGrab 切替", function()
+        poophub.AnitGrab:Toggle()
+    end)
+    
+    MainWindow:AddSlider("地面破壊 威力調整", 1, 10, 1, function(val)
+        poophub.GroundHakai:SetIntensity(val)
+    end)
+    
+    MainWindow:AddButton("地面破壊 実行 (テスト)", function()
+        poophub.GroundHakai:ExecuteBreak({X = 0, Y = 0, Z = 0})
+    end)
+    
+    MainWindow:AddToggle("Telemetry 有効化", true, function(val)
+        poophub.Config.Telemetry.Enabled = val
+    end)
+    
+    MainWindow:AddButton("ステータス表示", function()
+        poophub.Commands:Execute("status")
+    end)
+    
+    MainWindow:AddButton("Remote ステータス", function()
+        poophub.RemoteManager:PrintStatus()
+    end)
+    
+    MainWindow:AddButton("Remote バナー再表示", function()
+        poophub.RemoteConfig:PrintBanner()
+    end)
+    
+    MainWindow:AddInput("コマンド入力", "コマンドを入力...", function(value)
+        poophub.Commands:Execute(value)
+    end)
+    
+    print("[poophub] All modules successfully loaded and bound.")
+    print(string.format("[poophub] Registered %d commands, %d scheduler tasks, %d UI windows.",
+        poophub.Utils.TableLength(poophub.Commands.Registry),
+        #poophub.Scheduler.Tasks,
+        poophub.UI:GetWindowCount()))
+    print(string.format("[poophub] Remote endpoint: %s", poophub.RemoteConfig.Endpoint))
+end
+
+-- ================================================================================
+-- [ 19. Runtime Hook & Shutdown ]
+-- ================================================================================
+function poophub:Shutdown()
+    poophub.Logger:Info("[Core] Shutdown initiated...")
+    poophub.DCUS:Disconnect()
+    poophub.Telemetry:Sample()
+    poophub.Cache:Clear()
+    poophub.Events.Dispatch("Core_Shutdown")
+    poophub.Logger:Info("[Core] Shutdown complete.")
+end
+
+function poophub:GetVersion()
+    return string.format("%s (build %s)", self._VERSION, self._BUILD)
+end
+
+function poophub:GetModuleSummary()
+    return {
+        Version = self._VERSION,
+        Build = self._BUILD,
+        Environment = self._ENV,
+        RemoteEndpoint = self.RemoteConfig.Endpoint,
+        Modules = {
+            "RemoteConfig", "Config", "Utils", "Events", "Logger", "DCUS",
+            "AnitGrab", "GroundHakai", "UI", "Telemetry",
+            "Profiler", "Scheduler", "Cache", "StateMachine",
+            "SignalBus", "Commands", "Serializer", "Watchdog", "RemoteManager"
+        }
+    }
+end
+
+-- ================================================================================
+-- Bootstrap Execution
+-- ================================================================================
+poophub:Init()
